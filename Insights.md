@@ -26,4 +26,16 @@
 | isin     | MarketIssue | 0.06% | 17 |
 | macro | 30 columns | 0.11% - 3.31% | 1 - 29 |
 
+### Cumulative frequencies
 
+#### #Trades / Customers
+
+![Image](https://raw.githubusercontent.com/Robert-Alonso/DSG-2018/master/assets/trades-customer.png?token=AFjmgS0xTYKedt2pmJhJdv8d7j3a2PI-ks5bHAe0wA%3D%3D)
+
+#### #Trades / Bonds
+
+![Image](https://raw.githubusercontent.com/Robert-Alonso/DSG-2018/master/assets/trades-bond.png?token=AFjmgWM0aBWq_o2EIzE60PIjZgd3S8-1ks5bHAf9wA%3D%3D)
+
+#### #Trades / (Customers,Bonds)
+
+![Image](https://raw.githubusercontent.com/Robert-Alonso/DSG-2018/master/assets/trades-customer%2Bbond.png?token=AFjmgeN5Epsubr_Jp2bponcxeNr34L9Qks5bHAgHwA%3D%3D)
