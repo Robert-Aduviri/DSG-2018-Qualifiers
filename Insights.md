@@ -24,6 +24,6 @@
 | isin     | IndustrySector | 0.02% | 5 |
 | isin     | IndustrySubgroup | 0.02% | 5 |
 | isin     | MarketIssue | 0.06% | 17 |
-| macro | 30 cols | 0.11% - 3.31% | 1 - 29 |
+| macro | 30 columns | 0.11% - 3.31% | 1 - 29 |
 
 
