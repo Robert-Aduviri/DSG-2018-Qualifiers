@@ -1,8 +1,11 @@
 ## Insights List
 - Activity (# trades) increases at the end of each month, there is an atypical peak (4x) in the first month
-- The increase of activity is because of the holding reports (legal obligation)
+- The increase of activity is because of the holding reports (legal obligation) (just consider interest=1 events)
+- There is no activity on weekends and holidays
+- There should be around 4.2K positive labels in test set
 - There is historical information for all customers in test
 - There is historical information for all bonds in test
+- There is historical information for all (customer,bond) pairs in test
 - There is metadata for all customers in test
 - There is metadata for all bonds in test
 
