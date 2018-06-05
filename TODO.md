@@ -14,3 +14,4 @@
 
 #### EDA
 - [x] histogram of #trades per customer / bond
+- [ ] price when customerInterest = 1
