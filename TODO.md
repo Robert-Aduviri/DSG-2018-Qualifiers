@@ -7,7 +7,10 @@
 - [ ] add historical data (RNN previous bonds)
 
 #### Cross validation
-- [ ] setup cross validation considering future decisions for target optimization
+- [x] setup cross validation considering future decisions for target optimization
+- [ ] add previous days for training
+- [ ] remove 20170701 nan_date
+- [ ] consider / omit weekdays
 
 #### EDA
 - [x] histogram of #trades per customer / bond
