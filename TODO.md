@@ -6,6 +6,7 @@
 - [ ] add temporal data (RNN bond / macro prices until current point (fixed time window / variable scales (daily, weekly, monthly)))
 - [ ] add historical data (RNN previous bonds)
 - [ ] convert currency
+- [ ] group minority classes
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
