@@ -13,7 +13,7 @@ def make_val_set(day_df, challenge):
     filling complementary BuySell labels and including the data points from the
     original test set in challenge (DataFrame)"""
     val = {}
-    date = day_df['TradeDateKey'].unique()[0]
+    date = sorted(day_df['TradeDateKey'].unique())[0]
     for idx, row in challenge.iterrows():
         val[(date, row['CustomerIdx'], 
              row['IsinIdx'], row['BuySell'])] = 0
