@@ -1,4 +1,5 @@
 from datetime import date
+import numpy as np
 import pandas as pd
 
 def apply_cats(df, trn):
@@ -53,7 +54,7 @@ def add_datediffs(day_df, trades):
     (since last customer interaction) #DaysSinceBondActivity (since last bond
     interaction)"""
     trades = trades[trades.CustomerInterest == 1]
-    date = day_df['TradeDateKey'].unique()[0]
+    date = sorted(day_df['TradeDateKey'].unique())[0]
     trades = trades[trades.TradeDateKey < date]
     trades = trades.sort_values('TradeDateKey', ascending=False)
     
@@ -75,6 +76,69 @@ def preprocessing_pipeline(df, customer, isin, trade):
     #            'RiskCaptain', 'Owner', 'CompositeRating', 'IndustrySector',
     #            'IndustrySubgroup', 'MarketIssue', 'CouponType']
     return df
+
+##### MODEL ######
+
+import time, pprint    
+from sklearn.metrics import roc_auc_score
+pp = pprint.PrettyPrinter(indent=3)
+
+# globals: [cat_indices]
+def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping):
+    if X_val is not None:
+        if model_name in ['XGBClassifier', 'LGBMClassifier']:
+            early_stopping = 30 if early_stopping else 0
+            model.fit(X_trn, y_trn, 
+                      eval_set=[(X_val, y_val)],
+                      early_stopping_rounds=early_stopping,
+                      eval_metric='auc')
+        elif model_name == 'CatBoostClassifier':
+            model.fit(X_trn, y_trn, 
+                      eval_set=[(X_val, y_val)],
+                      use_best_model=True,
+                      cat_features=cat_indices)
+        else:
+            model.fit(X_trn, y_trn)
+    else:
+        model.fit(X_trn, y_trn)
+        
+def calculate_metrics(model, metrics, X_trn, y_trn, X_val, y_val):
+    metric_function = {'auc': roc_auc_score}
+    dset = {'trn': {'X': X_trn, 'y': y_trn},
+            'val': {'X': X_val, 'y': y_val}}
     
+    for d in dset:
+        if dset[d]['X'] is not None:
+            y_pred = model.predict_proba(dset[d]['X'])[:,1]
+            for m in metrics:
+                metrics[m][d] += [metric_function[m](dset[d]['y'], y_pred)]
+        else:
+            for m in metrics:
+                metrics[m][d] += [0] # no val set
+                
+    pp.pprint(metrics)
+    print()
     
+def run_model(model, X_train, y_train, X_val, y_val, X_test, 
+              metric_names, results=None, dataset_desc='', params_desc='',
+              early_stopping=False):
+    model_name = str(model.__class__).split('.')[-1].replace('>','').replace("'",'')
+    print(model_name, '\n')
+    if results is None: results = pd.DataFrame()
+    metrics = {metric: {'trn': [], 'val': []} for metric in metric_names}
+    y_test = np.zeros((len(X_test)))
+    start = time.time()
     
+    fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping)
+    calculate_metrics(model, metrics, X_train, y_train, X_val, y_val)
+    y_test = model.predict_proba(X_test)[:,1]
+            
+    end = time.time()
+    means = {f'{d}_{m}_mean': np.mean(metrics[m][d]) for m in metrics \
+                                                     for d in metrics[m]}
+    metadata = {'model': model_name, 'dataset': dataset_desc,
+                'params': params_desc, 'time': round(end - start, 2)}
+    pp.pprint(means)
+    results = results.append(pd.Series({**metadata, **means}),
+                             ignore_index=True)
+    return y_test, metrics, results, model
