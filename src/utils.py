@@ -48,7 +48,7 @@ def days_since(day_df, trades, keys, nan_date=20170701):
     
 # Count without considering weekdays
 def add_datediffs(day_df, trades):
-    """Adds datediffs features to a dataset (representing a single day)
+    """Adds datediffs features to a dataset (representing a single day/week)
     from the information of trades. Adds #DaysSinceBuySell (the corresponding
     one) #DaysSinceTransaction (either buy or sell), #DaysSinceCustomerActivity
     (since last customer interaction) #DaysSinceBondActivity (since last bond
@@ -64,6 +64,28 @@ def add_datediffs(day_df, trades):
                                             ['CustomerIdx', 'IsinIdx'])
     day_df['DaysSinceCustomerActivity'] = days_since(day_df, trades, ['CustomerIdx'])
     day_df['DaysSinceBondActivity'] = days_since(day_df, trades, ['IsinIdx'])
+
+def days_count(day_df, trades, keys):
+    '''Get frequency *keys* in historical trades before day_df'''
+    day_counter = trades.groupby(keys).size().to_dict()
+    return day_df.apply(lambda r: \
+            day_counter.get(tuple(r[k] for k in keys) if len(keys) > 1 else r[keys[0]], 
+            0), axis=1)
+    
+def add_dayscount(day_df, trades):
+    '''Adds dayscount features to a dataset (representing a single day/week)
+    from the information of trades'''
+    trades = trades[trades.CustomerInterest == 1]
+    date = sorted(day_df['TradeDateKey'].unique())[0]
+    trades = trades[trades.TradeDateKey < date]
+    
+    day_df['DaysCountBuySell'] = days_count(day_df, trades,
+                                    ['CustomerIdx', 'IsinIdx', 'BuySell'])
+    day_df['DaysCountTransaction'] = days_count(day_df, trades,
+                                    ['CustomerIdx', 'IsinIdx'])
+    day_df['DaysCountCustomerActivity'] = days_count(day_df, trades, ['CustomerIdx'])
+    day_df['DaysCountBondActivity'] = days_count(day_df, trades, ['IsinIdx'])
+    
     
 def preprocessing_pipeline(df, customer, isin, trade):
     df = pd.merge(df, customer, how='left', on='CustomerIdx')
