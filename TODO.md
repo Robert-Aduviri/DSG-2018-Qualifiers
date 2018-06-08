@@ -13,6 +13,7 @@
 - [ ] add previous days for training
 - [ ] remove 20170701 nan_date
 - [ ] consider / omit weekdays
+- [ ] test more weeks and compare predictions
 
 #### EDA
 - [x] histogram of #trades per customer / bond

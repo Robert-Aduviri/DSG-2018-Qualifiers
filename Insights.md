@@ -1,4 +1,5 @@
 ## Insights List
+- Only trades in 2018 are important
 - Activity (# trades) increases at the end of each month, there is an atypical peak (4x) in the first month
 - The increase of activity is because of the holding reports (legal obligation) (just consider interest=1 events)
 - There is no activity on weekends and holidays
