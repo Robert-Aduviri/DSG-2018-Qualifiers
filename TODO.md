@@ -15,7 +15,7 @@
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
-- [ ] add previous days for training
+- [x] add previous weeks for training (8 weeks)
 - [ ] remove 20170701 nan_date
 - [ ] consider / omit weekdays
 - [ ] test more weeks and compare predictions
