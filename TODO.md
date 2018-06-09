@@ -11,7 +11,11 @@
 - [ ] group minority classes
 - [x] add datediffs features
 - [x] add dayscount features
-- [ ] mean encoding
+- [x] mean encoding (only catboost version)
+- [ ] CompositeRating (ordinal label)
+- [ ] Actual MaturityDateKey - IssueDateKey (in days)
+- [ ] Actual MaturityDateKey - Today (in days)
+- [ ] 
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
