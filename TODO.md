@@ -15,8 +15,8 @@
 - [ ] CompositeRating (ordinal label)
 - [ ] Actual MaturityDateKey - IssueDateKey (in days)
 - [ ] Actual MaturityDateKey - Current Day (in days)
-- [ ] Relative variation of bond price / yield
-- [ ] Relative variation of bond currency exchange value
+- [ ] Relative variation of bond price / yield (last n weeks)
+- [ ] Relative variation of bond currency exchange value (last n weeks)
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
