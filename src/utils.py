@@ -1,4 +1,5 @@
-from datetime import date
+from datetime import date, timedelta
+from bisect import bisect_right
 import numpy as np
 import pandas as pd
 
@@ -32,11 +33,25 @@ def make_val_set(day_df, challenge):
     val.columns = ['TradeDateKey', 'CustomerIdx', 'IsinIdx', 'BuySell',
                    'CustomerInterest']
     return val
+
+def get_weeks(day_from=20150105, num_weeks=200):
+    return [date2num(num2date(day_from) + timedelta(i * 7)) for i in range(num_weeks)]
+
+def week_num(weeks, day):
+    return bisect_right(weeks, day) - 1
+
+def week_day(weeks, num):
+    return weeks[num]
+
+def num2date(n):
+    return date(n // 10000, (n // 100) % 100, n % 100)
+    
+def date2num(d):
+    return int(str(d).replace('-', ''))    
     
 def date_diff(d1, d2):
     '''#Days between d1 and d2, expressed as integers'''
-    return (date(d1 // 10000, (d1 // 100) % 100, d1 % 100) - \
-            date(d2 // 10000, (d2 // 100) % 100, d2 % 100)).days
+    return (num2date(d1) - num2date(d2)).days
     
 def days_since(day_df, trades, keys, nan_date=20170701):
     '''Get number of days between last *keys* and day_df date'''
