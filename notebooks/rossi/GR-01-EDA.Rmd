@@ -1,0 +1,295 @@
+---
+title: "EDA 01"
+output: html_notebook
+---
+
+
+```{r setup, include  = F}
+knitr::opts_knit$set(root.dir = ".")   
+knitr::opts_chunk$set(results = "hold", warning = F, message = F, cache = F, fig.align = "center") 
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(magrittr)
+dir("../../data")
+trade <- read_csv("../../data/Trade.csv")
+isin <- read_csv("../../data/Isin.csv")
+challenge <- read_csv("../../data/Challenge_20180423.csv")
+dim(trade)
+colnames(trade)
+```
+
+
+
+```{r}
+sapply(trade, function(col) length(unique(col)))
+```
+
+
+```{r}
+f_cuenta_prop <- function(variable) {
+    tabla <- table(trade[[variable]])  
+    rbind(tabla, round(prop.table(tabla),3))
+}
+list(f_cuenta_prop("BuySell"), f_cuenta_prop("TradeStatus"), f_cuenta_prop("CustomerInterest"))
+```
+
+## Holding
+
+De la descripción de la data, el interés del cliente es 0 solo si su estatus es holding. Podriamos obtener bastante informacion explorando la naturaleza de Holding en relacion a Customer / IsinIdx / Trade?
+
+
+#### Proporcion de holding segun cliente
+```{r}
+trade %>%
+    group_by(CustomerIdx) %>%
+    summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+    arrange(desc(prop_holding))
+```
+
+#### Holding x cliente
+```{r}
+holdings_cust_fecha_isin <- 
+    trade %>% 
+    group_by(CustomerIdx, TradeDateKey, IsinIdx) %>% 
+    summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+    arrange(desc(prop_holding)) 
+holdings_cust_fecha_isin
+```
+- Esto se demora tanto porque se generan todas las posibles combinaciones (poco mas del tamaño de trade)
+- Hace pensar en que la cantidad de determinado Isin que tiene el cliente no es explicita; sin embargo deberia cambiar con el tiempo si el cliente compra/vende. Habria que explorar NotionalEur a traves del tiempo.
+
+#### Holding segun cliente x fecha
+
+```{r}
+hold_customer_x_fecha <- trade %>% 
+                group_by(CustomerIdx, TradeDateKey) %>% 
+                summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+                arrange(desc(prop_holding)) 
+hold_customer_x_fecha
+```
+
+- Se observa lo que vio Robert de Holding ocurriendo a fines/comienzos de mes.
+- Sin embargo, hay holdings que no ocurren solo en esas fechas. Son estos los eventos que nos interesan?
+
+```{r}
+library(lubridate)
+library(stringr)
+regex_no_fin_mes <- "[0-9]{6}((28)|(29)|(30)|(31)|(01))"
+
+hold_customer_x_fecha %>% 
+    filter(TradeDateKey > 20180000) %>% 
+    filter(!str_detect(TradeDateKey, regex_no_fin_mes)) %>% 
+    mutate(TradeDateKey = lubridate::ymd(TradeDateKey)) %>% 
+    ggplot() +  
+    geom_jitter(aes(x = prop_holding, y = cuenta, color = TradeDateKey), alpha=0.5)
+```
+Que veo aqui?
+
+```{r}
+hold_customer_x_fecha %>% 
+    filter(!str_detect(TradeDateKey, regex_no_fin_mes)) %>% 
+    ungroup() %>% count(prop_holding) %>%
+    ggplot() +
+    geom_histogram(aes(x=prop_holding))
+```
+En estas fechas que no son de Holding hay mucha mas actividad que 
+
+## Customer x Isin
+```{r}
+hold_customer_x_isin <- trade %>% 
+                group_by(CustomerIdx, IsinIdx) %>% 
+                summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+                arrange(desc(prop_holding)) 
+hold_customer_x_isin
+```
+
+```{r}
+hold_customer_x_isin %>% 
+    ggplot() + geom_point(aes(x = prop_holding, y = cuenta))  + 
+    ggtitle("Customer x Isin: frecuencia vs proprocion de holding")
+```
+- Vale la pena revisar esos Customer x Isin con frecuencias mayores a 200; ver si podemos manipular las predicciones.
+
+
+
+```{r}
+holding_isin <- 
+    trade %>% 
+    group_by(IsinIdx) %>%
+    summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+    arrange(desc(prop_holding)) 
+
+holding_isin %>% 
+    ggplot() + geom_point(aes(prop_holding, cuenta)) + 
+    ggtitle("Isins: frecuencia vs proporcion de holding")
+```
+
+```{r}
+holding_isin %>% 
+    filter(prop_holding<0.01 | prop_holding>0.995) %>% 
+    mutate(prop_holding = ceiling(prop_holding)) %>% 
+    count(prop_holding)
+```
+- Hay bonos que casi siempre se retienen, y aparecen con una frecuencia no despreciable. ¿Que caracteriza a estos bonos?
+- Hay bonos que nunca se retienen, pero tienen una frecuencia mucho menor. Podría deberse a simple aleatoriedad.
+- Una gran cantidad de bonos se trafica de forma poco frecuente y con variacióne en la proporción de holding.
+
+
+```{r}
+isin_ceros_unos <- holding_isin %>% 
+            filter(prop_holding==0 | prop_holding > 0.995) %>% 
+            inner_join(isin, by = "IsinIdx")
+
+isin_ceros_unos %>% 
+    ggplot() +  
+    geom_jitter(aes(x= prop_holding,
+                    y = cuenta, color = IndustrySector), width = 0.05) + 
+    ggtitle("Isins con proporcion de Holding 0 o 1, por sector")
+```
+- Los que están con proporción de holding 1 y tienen más de 500 de cuenta nos dice claramente que estos siempre están en holding. Podemos modificar las predicciones y poner 1 con seguridad para aumentar el AUC. 
+
+- Es interesante ese del sector comunicaciones con Holding 1.
+
+- Los dos que están con proporción de holding 0 podríamos alterar su interés a 1 con seguridad.
+
+
+```{r}
+isin_ceros_unos %>% 
+    ggplot() +  
+    geom_jitter(aes(x= prop_holding,
+                    y = cuenta, color = Seniority), width = 0.05) + 
+                    # y = cuenta, color = paste(Seniority,IndustrySector)), width = 0.05) + 
+    ggtitle("Isins con proporcion de Holding 0 o 1, por seniority")
+```
+- Hay un patron claro. Lo ideal seria retirar toda la data sobre esas acciones del modelo, porque solo estan causando confusion respecto a otros niveles de sus covariables . Y manipular las predicciones a mano.
+
+
+### Implicancias para challenge
+
+```{r}
+challenge$CustomerIdx %>% unique %>% length()
+trade$CustomerIdx %>% unique() %>% length()
+```
+
+```{r}
+challenge$IsinIdx %>% unique() %>% length()
+trade$IsinIdx %>% unique() %>% length()
+```
+- No todos los Isins ni todos los clientes estan en Challenge
+
+```{r}
+isin_ceros_unos %>% 
+    filter(cuenta > 250) %>% 
+    select(IsinIdx) %>% distinct() %>% 
+    inner_join(select(challenge, IsinIdx) %>% distinct(), by = "IsinIdx")
+```
+- :( solo hay 382 predicciones a los que les podemos meter mano directamente
+
+```{r}
+# Numero de filas
+isin_ceros_unos %>% 
+    filter(cuenta > 250) %>% 
+    select(IsinIdx) %>% distinct() %>% 
+    inner_join(select(challenge, IsinIdx) %>% distinct(), by = "IsinIdx") %>% 
+    inner_join(trade, by = "IsinIdx") %>% dim()
+
+# Fechas que representan
+isin_ceros_unos %>% 
+    filter(cuenta > 250) %>% 
+    select(IsinIdx) %>% distinct() %>% 
+    inner_join(select(challenge, IsinIdx) %>% distinct(), by = "IsinIdx") %>% 
+    inner_join(trade, by = "IsinIdx") %$% unique(TradeDateKey) %>% sort() %>% summary()
+```
+- Eliminaríamos solo 13 Isins, pero representan 11 mil de filas de entrenamiento, por lo menos 25% de ellas, 2500 filas del 2018.
+
+
+```{r}
+submission <- read_csv("../../submissions/08-catboost_8weeks_diffscount_0226-0416.csv")
+```
+```{r}
+isin_ceros_unos %>% 
+    filter(cuenta > 250) %>% 
+    inner_join(challenge, by = "IsinIdx") %>% 
+    select(prop_holding, PredictionIdx) %>% 
+    inner_join(submission, by = "PredictionIdx") %>% 
+    ggplot() + geom_point(aes(x=prop_holding, y = CustomerInterest))
+```
+
+Modificando archivo
+```{r}
+isin_ceros_unos %>% 
+    filter(cuenta > 250) %>% 
+    inner_join(challenge, by = "IsinIdx") %>% 
+    select(prop_holding, PredictionIdx) %>% 
+    right_join(submission, by = "PredictionIdx") %>% 
+    mutate(CustomerInterest = case_when(is.na(prop_holding) ~ CustomerInterest,
+                                        prop_holding < 0.01 ~ 1,
+                                        prop_holding >0.99 ~ 0)) %>% 
+    select(-prop_holding) %>% 
+    write_csv("../../submissions/08-catboost_8weeks_diffscount_0226-0416-modificado.csv")
+submit <- read_csv("../../submissions/08-catboost_8weeks_diffscount_0226-0416-modificado.csv")
+```
+
+- Al modificar esto manualmente, se pasa de 0.72120 a 0.72107; hacerlo manualmente es casi lo mismo que que lo haga el modelo
+
+```{r}
+trade %>%
+    group_by(CustomerIdx) %>%
+    summarise(prop_holding = mean(TradeStatus == "Holding"), cuenta = n()) %>%
+    arrange(desc(prop_holding)) %>% 
+    # filter(cuenta < 50000) %>% 
+    ggplot() + 
+    geom_jitter(aes(cuenta, prop_holding))
+```
+
+
+
+
+
+
+```{r}
+filter(trade, CustomerIdx == 1946, CustomerInterest==0) %>%
+    ggplot() + geom_line(aes(x= TradeDateKey, y =NotionalEUR, color = as.factor(IsinIdx) ,group = IsinIdx)) + guides(color = NULL)
+```
+
+
+
+La frecuencia del número de transacciones por cliente:
+- La mediana es 55, el 3er cuartil es 574. La media 1966. El maximo es 154077!
+```{r}
+count(trade, CustomerIdx) %>%  count(n)
+```
+La mayor parte de clientes hace menos 
+
+
+
+
+```{r}
+
+trade %>% 
+    filter(TradeDateKey > 20180000) %>% 
+    mutate(TradeDateKey = ymd(TradeDateKey)) %>% 
+    count(TradeDateKey) %>%
+    ggplot() + 
+    geom_col(aes(x = TradeDateKey, y = n)) + 
+    geom_text(mapping = aes(x = TradeDateKey, y = n,
+                            label = ifelse(n>100000, as.character(TradeDateKey), ""))) + 
+    coord_flip() 
+    # scale_x_continuous(breaks = scales::pretty_breaks(n=10))
+```
+
+
+
+### Apuntes
+
+- Resolver el TradeStatus Holding, que indica algo distinto de lo que debería. 
+    - *Holding: Some of our Customer have a legal obligation to report at a regular frequency (monthly, quarterly) what they have in their portfolio. This information is represented in our database as a serie of transaction happening on those reporting dates: if Customer suddenly has a holding of 10M on 31St of Jan in a given Bond, we will record a Buy transaction for 10M on 31st of Jan. If on the 31st of Match the holding is now 5M, we will record a Sell transaction for 5M on the 31st of March. Those are not real transaction but just a way to represent Customer's holdings.* 
+    - 67% de las operaciones en Trade son de estatus holding.
+    
+    
+
+
