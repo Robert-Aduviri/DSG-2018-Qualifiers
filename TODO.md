@@ -19,6 +19,7 @@
 - [x] Actual MaturityDateKey - Current Day (in days)
 - [x] Relative variation of bond price / yield (last n weeks)
 - [x] Relative variation of bond currency exchange value (last n weeks)
+- [ ] # bonds bought/sold in the previous week
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
