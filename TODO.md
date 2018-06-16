@@ -5,6 +5,8 @@
 - [ ] add temporal data (RNN bond / macro prices until current point (fixed time window / variable scales (daily, weekly, monthly)))
 - [ ] add historical data (RNN previous bonds)
 - [ ] convert currency
+- [ ] normalize data
+- [ ] fill nan
 
 #### Feature Engineering
 - [ ] add date features 
@@ -33,3 +35,5 @@
 - [x] LightGBM
 - [x] Catboost
 - [ ] Deep Neural Net
+- [ ] RNN for market and macro
+- [ ] Cat embeddings for categorical data
