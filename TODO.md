@@ -5,6 +5,8 @@
 - [ ] add temporal data (RNN bond / macro prices until current point (fixed time window / variable scales (daily, weekly, monthly)))
 - [ ] add historical data (RNN previous bonds)
 - [ ] convert currency
+- [ ] normalize data
+- [ ] fill nan
 
 #### Feature Engineering
 - [ ] add date features 
@@ -12,11 +14,12 @@
 - [x] add datediffs features
 - [x] add dayscount features
 - [x] mean encoding (only catboost version)
-- [ ] CompositeRating (ordinal label)
-- [ ] Actual MaturityDateKey - IssueDateKey (in days)
-- [ ] Actual MaturityDateKey - Current Day (in days)
-- [ ] Relative variation of bond price / yield (last n weeks)
-- [ ] Relative variation of bond currency exchange value (last n weeks)
+- [x] CompositeRating (ordinal label)
+- [x] Actual MaturityDateKey - IssueDateKey (in days)
+- [x] Actual MaturityDateKey - Current Day (in days)
+- [x] Relative variation of bond price / yield (last n weeks)
+- [x] Relative variation of bond currency exchange value (last n weeks)
+- [ ] # bonds bought/sold in the previous week
 
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
@@ -33,3 +36,5 @@
 - [x] LightGBM
 - [x] Catboost
 - [ ] Deep Neural Net
+- [ ] RNN for market and macro
+- [ ] Cat embeddings for categorical data
