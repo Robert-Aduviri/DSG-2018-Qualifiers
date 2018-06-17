@@ -101,6 +101,21 @@ def add_dayscount(day_df, trades):
     day_df['DaysCountCustomerActivity'] = days_count(day_df, trades, ['CustomerIdx'])
     day_df['DaysCountBondActivity'] = days_count(day_df, trades, ['IsinIdx'])
     
+def composite_rating_cmp(x, y):
+    if x[0] != y[0]: # A vs B
+        return -1 if x[0] < y[0] else 1
+    len_x = len([c for c in x if c.isalpha()])
+    len_y = len([c for c in y if c.isalpha()])
+    if len_x != len_y: # AAA vs AA
+        return -1 if len_x > len_y else 1
+    if x != y: # BB+ BB-
+        if '+' in x:
+            return -1 
+        elif '+' in y:
+            return 1
+        else:
+            return -1 if len(x) < len(y) else 1
+    return 0
     
 def preprocessing_pipeline(df, customer, isin, trade):
     df = pd.merge(df, customer, how='left', on='CustomerIdx')
@@ -124,7 +139,7 @@ pp = pprint.PrettyPrinter(indent=3)
 def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping, cat_indices):
     if X_val is not None:
         if model_name in ['XGBClassifier', 'LGBMClassifier']:
-            early_stopping = 30 if early_stopping else 0
+            early_stopping = 30 if early_stopping else None
             model.fit(X_trn, y_trn, 
                       eval_set=[(X_val, y_val)],
                       early_stopping_rounds=early_stopping,
