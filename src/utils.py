@@ -138,13 +138,12 @@ from sklearn.metrics import roc_auc_score
 pp = pprint.PrettyPrinter(indent=3)
 
 # globals: [cat_indices]
-def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping, cat_indices):
+def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping_rounds, cat_indices):
     if X_val is not None:
         if model_name in ['XGBClassifier', 'LGBMClassifier']:
-            early_stopping = 30 if early_stopping else None
             model.fit(X_trn, y_trn, 
                       eval_set=[(X_val, y_val)],
-                      early_stopping_rounds=early_stopping,
+                      early_stopping_rounds=early_stopping_rounds,
                       eval_metric='auc')
         elif model_name == 'CatBoostClassifier':
             model.fit(X_trn, y_trn, 
@@ -179,7 +178,7 @@ def calculate_metrics(model, metrics, X_trn, y_trn, X_val, y_val):
     
 def run_model(model, X_train, y_train, X_val, y_val, X_test, 
               metric_names, results=None, dataset_desc='', params_desc='',
-              early_stopping=False, cat_indices=None):
+              early_stopping_rounds=None, cat_indices=None):
     model_name = str(model.__class__).split('.')[-1].replace('>','').replace("'",'')
     print(model_name, '\n')
     if results is None: results = pd.DataFrame()
@@ -187,7 +186,7 @@ def run_model(model, X_train, y_train, X_val, y_val, X_test,
     y_test = np.zeros((len(X_test)))
     start = time.time()
     
-    fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping, cat_indices)
+    fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping_rounds, cat_indices)
     calculate_metrics(model, metrics, X_train, y_train, X_val, y_val)
     y_test = model.predict_proba(X_test)[:,1]
             
