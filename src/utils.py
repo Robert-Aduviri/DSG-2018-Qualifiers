@@ -53,7 +53,7 @@ def date_diff(d1, d2):
     '''#Days between d1 and d2, expressed as integers'''
     return (num2date(d1) - num2date(d2)).days
     
-def days_since(day_df, trades, keys, nan_date=20170701):
+def days_since(day_df, trades, keys, nan_date):
     '''Get number of days between last *keys* and day_df date'''
     last_trades = pd.Series(trades.drop_duplicates(keys, keep='first') \
             .set_index(keys)['TradeDateKey']).to_dict()
@@ -62,7 +62,7 @@ def days_since(day_df, trades, keys, nan_date=20170701):
             nan_date)), axis=1)
     
 # Count without considering weekdays
-def add_datediffs(day_df, trades):
+def add_datediffs(day_df, trades, nan_date=20170701):
     """Adds datediffs features to a dataset (representing a single day/week)
     from the information of trades. Adds #DaysSinceBuySell (the corresponding
     one) #DaysSinceTransaction (either buy or sell), #DaysSinceCustomerActivity
@@ -74,11 +74,13 @@ def add_datediffs(day_df, trades):
     trades = trades.sort_values('TradeDateKey', ascending=False)
     
     day_df['DaysSinceBuySell'] = days_since(day_df, trades, 
-                                            ['CustomerIdx', 'IsinIdx', 'BuySell'])
+                                    ['CustomerIdx', 'IsinIdx', 'BuySell'], nan_date)
     day_df['DaysSinceTransaction'] = days_since(day_df, trades, 
-                                            ['CustomerIdx', 'IsinIdx'])
-    day_df['DaysSinceCustomerActivity'] = days_since(day_df, trades, ['CustomerIdx'])
-    day_df['DaysSinceBondActivity'] = days_since(day_df, trades, ['IsinIdx'])
+                                    ['CustomerIdx', 'IsinIdx'], nan_date)
+    day_df['DaysSinceCustomerActivity'] = days_since(day_df, trades, ['CustomerIdx'], 
+                                    nan_date)
+    day_df['DaysSinceBondActivity'] = days_since(day_df, trades, ['IsinIdx'],
+                                    nan_date)
 
 def days_count(day_df, trades, keys):
     '''Get frequency *keys* in historical trades before day_df'''
