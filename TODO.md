@@ -24,7 +24,7 @@
 #### Cross validation
 - [x] setup cross validation considering future decisions for target optimization
 - [x] add previous weeks for training (8 weeks)
-- [ ] remove 20170701 nan_date
+- [x] remove 20170701 nan_date
 - [ ] consider / omit weekdays
 - [x] test more weeks and compare predictions
 
@@ -36,5 +36,6 @@
 - [x] LightGBM
 - [x] Catboost
 - [ ] Deep Neural Net
-- [ ] RNN for market and macro
+- [ ] RNN for market and macro (metadata as init-hidden via dense layer, day/month/macro/market as sequence input, interest as sequence output)
+- [ ] Matrix Factorization (item = Bond+BuySell)
 - [ ] Cat embeddings for categorical data

@@ -183,12 +183,13 @@ def run_model(model, X_train, y_train, X_val, y_val, X_test,
     print(model_name, '\n')
     if results is None: results = pd.DataFrame()
     metrics = {metric: {'trn': [], 'val': []} for metric in metric_names}
-    y_test = np.zeros((len(X_test)))
+    
     start = time.time()
     
     fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping_rounds, cat_indices)
     calculate_metrics(model, metrics, X_train, y_train, X_val, y_val)
-    y_test = model.predict_proba(X_test)[:,1]
+    
+    y_test = model.predict_proba(X_test)[:,1] if X_test is not None else None    
             
     end = time.time()
     means = {f'{d}_{m}_mean': np.mean(metrics[m][d]) for m in metrics \
