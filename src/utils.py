@@ -53,7 +53,7 @@ def date_diff(d1, d2):
     '''#Days between d1 and d2, expressed as integers'''
     return (num2date(d1) - num2date(d2)).days
     
-def days_since(day_df, trades, keys, nan_date=20170701):
+def days_since(day_df, trades, keys, nan_date):
     '''Get number of days between last *keys* and day_df date'''
     last_trades = pd.Series(trades.drop_duplicates(keys, keep='first') \
             .set_index(keys)['TradeDateKey']).to_dict()
@@ -62,7 +62,7 @@ def days_since(day_df, trades, keys, nan_date=20170701):
             nan_date)), axis=1)
     
 # Count without considering weekdays
-def add_datediffs(day_df, trades):
+def add_datediffs(day_df, trades, nan_date=20170701):
     """Adds datediffs features to a dataset (representing a single day/week)
     from the information of trades. Adds #DaysSinceBuySell (the corresponding
     one) #DaysSinceTransaction (either buy or sell), #DaysSinceCustomerActivity
@@ -74,11 +74,13 @@ def add_datediffs(day_df, trades):
     trades = trades.sort_values('TradeDateKey', ascending=False)
     
     day_df['DaysSinceBuySell'] = days_since(day_df, trades, 
-                                            ['CustomerIdx', 'IsinIdx', 'BuySell'])
+                                    ['CustomerIdx', 'IsinIdx', 'BuySell'], nan_date)
     day_df['DaysSinceTransaction'] = days_since(day_df, trades, 
-                                            ['CustomerIdx', 'IsinIdx'])
-    day_df['DaysSinceCustomerActivity'] = days_since(day_df, trades, ['CustomerIdx'])
-    day_df['DaysSinceBondActivity'] = days_since(day_df, trades, ['IsinIdx'])
+                                    ['CustomerIdx', 'IsinIdx'], nan_date)
+    day_df['DaysSinceCustomerActivity'] = days_since(day_df, trades, ['CustomerIdx'], 
+                                    nan_date)
+    day_df['DaysSinceBondActivity'] = days_since(day_df, trades, ['IsinIdx'],
+                                    nan_date)
 
 def days_count(day_df, trades, keys):
     '''Get frequency *keys* in historical trades before day_df'''
@@ -101,6 +103,21 @@ def add_dayscount(day_df, trades):
     day_df['DaysCountCustomerActivity'] = days_count(day_df, trades, ['CustomerIdx'])
     day_df['DaysCountBondActivity'] = days_count(day_df, trades, ['IsinIdx'])
     
+def composite_rating_cmp(x, y):
+    if x[0] != y[0]: # A vs B
+        return -1 if x[0] < y[0] else 1
+    len_x = len([c for c in x if c.isalpha()])
+    len_y = len([c for c in y if c.isalpha()])
+    if len_x != len_y: # AAA vs AA
+        return -1 if len_x > len_y else 1
+    if x != y: # BB+ BB-
+        if '+' in x:
+            return -1 
+        elif '+' in y:
+            return 1
+        else:
+            return -1 if len(x) < len(y) else 1
+    return 0
     
 def preprocessing_pipeline(df, customer, isin, trade):
     df = pd.merge(df, customer, how='left', on='CustomerIdx')
@@ -155,13 +172,12 @@ from sklearn.metrics import roc_auc_score
 pp = pprint.PrettyPrinter(indent=3)
 
 # globals: [cat_indices]
-def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping, cat_indices):
+def fit_model(model, model_name, X_trn, y_trn, X_val, y_val, early_stopping_rounds, cat_indices):
     if X_val is not None:
         if model_name in ['XGBClassifier', 'LGBMClassifier']:
-            early_stopping = 30 if early_stopping else 0
             model.fit(X_trn, y_trn, 
                       eval_set=[(X_val, y_val)],
-                      early_stopping_rounds=early_stopping,
+                      early_stopping_rounds=early_stopping_rounds,
                       eval_metric='auc')
         elif model_name == 'CatBoostClassifier':
             model.fit(X_trn, y_trn, 
@@ -196,17 +212,18 @@ def calculate_metrics(model, metrics, X_trn, y_trn, X_val, y_val):
     
 def run_model(model, X_train, y_train, X_val, y_val, X_test, 
               metric_names, results=None, dataset_desc='', params_desc='',
-              early_stopping=False, cat_indices=None):
+              early_stopping_rounds=None, cat_indices=None):
     model_name = str(model.__class__).split('.')[-1].replace('>','').replace("'",'')
     print(model_name, '\n')
     if results is None: results = pd.DataFrame()
     metrics = {metric: {'trn': [], 'val': []} for metric in metric_names}
-    y_test = np.zeros((len(X_test)))
+    
     start = time.time()
     
-    fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping, cat_indices)
+    fit_model(model, model_name, X_train, y_train, X_val, y_val, early_stopping_rounds, cat_indices)
     calculate_metrics(model, metrics, X_train, y_train, X_val, y_val)
-    y_test = model.predict_proba(X_test)[:,1]
+    
+    y_test = model.predict_proba(X_test)[:,1] if X_test is not None else None    
             
     end = time.time()
     means = {f'{d}_{m}_mean': np.mean(metrics[m][d]) for m in metrics \
