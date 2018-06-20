@@ -114,6 +114,40 @@ def preprocessing_pipeline(df, customer, isin, trade):
     #            'IndustrySubgroup', 'MarketIssue', 'CouponType']
     return df
 
+
+##### SMA ##### by Kervy
+
+def calculate_SMA(df, period, start=0, column='Price'):
+    """
+        Returning the First SMA to calculate the first EMA
+    """
+    return df.loc[start:period + start - 1][column].sum() / period
+
+def calculate_EMA(prev_EMA, price, multiplier):
+    """
+        Returning the EMA for t time
+    """
+    return (price - prev_EMA) * multiplier + prev_EMA
+
+def fill_EMA(df, period=20, name_column='EMA_Price_Short_term', column='Price'):
+    """
+        Exponential moving averages (EMAs) reduce the lag by applying more weight to recent prices
+    """
+    first_SMA = calculate_SMA(df, period, column=column)
+    multiplier= (2.0 / (period + 1))    
+    df[name_column] = np.nan
+    for ix, _ in df.iterrows():
+        if ix < period - 1:
+            continue
+        elif ix == period - 1:
+            df.set_value(ix, name_column, first_SMA)
+            prev_EMA = first_SMA
+        else:
+            if np.isnan(df.loc[ix][column]):
+                df.set_value(ix, column, (df.loc[ix-1][column] + df.loc[ix+1][column]) / 2)
+            actual_EMA = calculate_EMA(prev_EMA, df.loc[ix][column], multiplier)
+            prev_EMA = actual_EMA
+            df.set_value(ix, name_column, actual_EMA)
 ##### MODEL ######
 
 import time, pprint    
