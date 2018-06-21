@@ -200,3 +200,21 @@ def run_model(model, X_train, y_train, X_val, y_val, X_test,
     results = results.append(pd.Series({**metadata, **means}),
                              ignore_index=True)
     return y_test, metrics, results, model
+
+
+##### UTILS ######
+
+import time
+from IPython.display import display as d
+from IPython.display import Audio
+from IPython.core.display import HTML
+import numpy as np
+
+def alert(duration=2):
+    """ makes sound on client using javascript (works with remote server) """      
+    framerate = 44100
+    freq=300
+    t = np.linspace(0,duration,framerate*duration)
+    data = np.sin(2*np.pi*freq*t)
+    d(Audio(data,rate=framerate, autoplay=True))
+    d(HTML("<style>audio{display:none}</style>"))
