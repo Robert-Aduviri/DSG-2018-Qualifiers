@@ -9,6 +9,10 @@ def apply_cats(df, trn):
     for n,c in df.items():
         if (n in trn.columns) and (trn[n].dtype.name=='category'):
             df[n] = pd.Categorical(c, categories=trn[n].cat.categories, ordered=True)
+
+def to_cat_codes(df, cat_cols):
+    for col in cat_cols:
+        df[col] = df[col].astype('category').cat.as_ordered()
             
 def make_val_set(day_df, challenge):
     """Makes a validation set from the information of the given day (DataFrame)
