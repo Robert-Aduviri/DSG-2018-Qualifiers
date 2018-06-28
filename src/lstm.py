@@ -26,7 +26,7 @@ class SequentialDataset(torch.utils.data.Dataset):
 
 class LSTMClassifier(nn.Module):
     def __init__(self, input_sz, hidden_sz, n_layers, drop=0.1, 
-                 USE_CUDA=False):
+                 USE_CUDA=False, out_sz=1):
         super().__init__()
         self.input_sz = input_sz
         self.hidden_sz = hidden_sz
@@ -35,7 +35,7 @@ class LSTMClassifier(nn.Module):
         
         self.lstm = nn.LSTM(input_sz, hidden_sz, n_layers, 
                             batch_first=False, dropout=drop)
-        self.out = nn.Linear(hidden_sz, 1) # output_sz 1
+        self.out = nn.Linear(hidden_sz, out_sz) # output_sz 1
         
     def forward(self, sequence, hidden):
         out, hidden = self.lstm(sequence, hidden)

@@ -22,7 +22,7 @@ class TabularDataset(torch.utils.data.Dataset):
 
 class NeuralNet(nn.Module):
     def __init__(self, emb_szs, n_cont, emb_drop, szs, drops,
-                 use_bn=False):
+                 use_bn=True, out_sz=1):
         super().__init__()
         
         self.embs = nn.ModuleList([
@@ -45,7 +45,7 @@ class NeuralNet(nn.Module):
             nn.BatchNorm1d(sz) for sz in szs[1:]
         ])        
             
-        self.outp = nn.Linear(szs[-1], 1) # 1 output
+        self.outp = nn.Linear(szs[-1], out_sz) # 1 output
         nn.init.kaiming_normal_(self.outp.weight.data)
         
         self.emb_drop = nn.Dropout(emb_drop)
