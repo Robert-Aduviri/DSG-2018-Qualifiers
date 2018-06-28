@@ -78,6 +78,7 @@ class NeuralNet(nn.Module):
         x.uniform_(-sc, sc)
 
 def train_step(cats, conts, target, model, optimizer, criterion, train=True):
+    model.train()
     if train:
         optimizer.zero_grad()
     pred = model(cats, conts)
@@ -114,7 +115,6 @@ def train_model(model, optimizer, criterion, train_loader, val_loader,
     val_auc_scores = []
     val_every *= print_every
     for epoch in range(n_epochs):
-        model.train()
         train_loss, val_loss = 0, 0
         for batch_idx, (cats, conts, target) in enumerate(train_loader):
             cats, conts, target = Variable(cats), Variable(conts), Variable(target)
@@ -129,7 +129,8 @@ def train_model(model, optimizer, criterion, train_loader, val_loader,
                         100. * batch_idx / len(train_loader), train_loss))
                 train_losses.append(train_loss)
                 train_loss = 0
-            if batch_idx > 0 and batch_idx % val_every == 0:
+                
+            if val_loader is not None and batch_idx > 0 and batch_idx % val_every == 0:
                 targets, preds = get_predictions(model, val_loader, USE_CUDA=USE_CUDA)
                 # [preds, targets]
                 val_loss = nn.BCELoss()(torch.Tensor(preds), torch.Tensor(targets)).item() 
