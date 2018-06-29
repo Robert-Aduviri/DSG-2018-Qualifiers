@@ -27,7 +27,8 @@ class MultimodalDataset(torch.utils.data.Dataset):
     
 class MultimodalClassifier(nn.Module):
     def __init__(self, emb_szs, n_cont, emb_drop, szs, drops, 
-                 rnn_hidden_sz, rnn_input_sz, rnn_n_layers, rnn_drop):
+                 rnn_hidden_sz, rnn_input_sz, rnn_n_layers, rnn_drop,
+                 hidden_sz):
         super().__init__()
         self.structured_net = NeuralNet(emb_szs, n_cont=n_cont, 
                         emb_drop=emb_drop, szs=szs, drops=drops, 
@@ -35,7 +36,11 @@ class MultimodalClassifier(nn.Module):
         
         self.sequential_net = LSTMClassifier(input_sz=rnn_input_sz,
                         hidden_sz=rnn_hidden_sz, n_layers=rnn_n_layers, 
-                        drop=rnn_drop)  
+                        drop=rnn_drop, out_sz=rnn_out_sz)  
+        
+        self.rnn_out = nn.Linear(rnn_out_sz, hidden_sz) 
+        self.out = nn.Linear(rnn_hidden_sz * rnn_n_layers * 2 + hidden_sz, 1) # out_sz = 1
+        
         self.rnn_n_layers = rnn_n_layers
         self.rnn_hidden_sz = rnn_hidden_sz
         
@@ -44,17 +49,27 @@ class MultimodalClassifier(nn.Module):
         out = out.view(-1, 2, self.rnn_n_layers, self.rnn_hidden_sz) \
                     .transpose(0,1).transpose(1,2)
         return (out[0].contiguous(), out[1].contiguous())
+    
+    def embed_forward(self, rnn_h0, rnn_output):
+        context = rnn_h0.transpose(0,2)
+        context = context.view(context.size(0), -1)
+        # output [seq_len, batch_sz, hidden_sz]
+        output = rnn_output.transpose(0,1)
+        output = output.view(output.size(0), -1)
+        output = F.relu(model.out(torch.cat([x, output], axis=1)))
+        
         
 def train_step(model, cats, conts, seqs, targets, optimizer, criterion):
     model.train()
     optimizer.zero_grad()
-    hidden = model(cats, conts)
+    hidden = model(cats, conts) # [2, n_layers, batch_size, hidden_sz]
     seqs = seqs.transpose(0,1) # [seq_len, batch_sz]
     targets = targets.transpose(0,1)
     loss = 0
     for i in range(len(seqs)): # for each timestep
         output, hidden = model.sequential_net(seqs[i].unsqueeze(0) \
                                               .unsqueeze(2), hidden)
+        
         loss += criterion(output, targets[i].unsqueeze(1))
     loss.backward()
     optimizer.step()
@@ -63,11 +78,19 @@ def train_step(model, cats, conts, seqs, targets, optimizer, criterion):
 def evaluate(model, cats, conts, seqs):
     with torch.no_grad():
         model.eval()
-        hidden = model(cats, conts)
+        x = model(cats, conts) # [2, n_layers, batch_size, hidden_sz]
+        hidden = x
+        x = x.transpose(0,2)
+        x = x.view(x.size(0), -1)
         seqs = seqs.transpose(0,1) # [seq_len, batch_sz]
         for i in range(len(seqs)): # for each timestep
             output, hidden = model.sequential_net(seqs[i].unsqueeze(0) \
                                                   .unsqueeze(2), hidden)
+            # output [seq_len, batch_sz, hidden_sz]
+            output = output.transpose(0,1)
+            output = output.view(output.size(0), -1)
+            output = model.out(F.relu(model.out(torch.cat([x, output], axis=1))))
+            loss += criterion(output, targets[i].unsqueeze(1))
         return F.sigmoid(output).view(-1)
     
 def get_predictions(model, data_loader, print_every=800, USE_CUDA=False):
