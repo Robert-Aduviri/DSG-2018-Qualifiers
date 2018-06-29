@@ -39,5 +39,23 @@
 - [ ] RNN for market and macro (metadata as init-hidden via dense layer, day/month/macro/market as sequence input, interest as sequence output)
 - [x] Matrix Factorization (item = Bond+BuySell)
 - [x] Cat embeddings for categorical data
-- [ ] Add cats+conts at each timestep / at the beginning / at the end
+- [x] Add cats+conts at each timestep / at the beginning / at the end
 - [ ] Train with / without zero sequences
+
+- [ ] Train with targets of previous timesteps
+- [ ] Fast.ai functions
+- [ ] Control overfitting
+- [ ] Add Customer and Bond embedding
+- [ ] More dense layers / dropout / ReLU activations at the end
+- [ ] Get macro / market data
+- [ ] Recommender system based on embeddings
+
+```
+users,movies = cats[:,0],cats[:,1]
+u2,m2 = self.u(users) , self.m(movies)
+x = self.drop1(torch.cat([u2,m2], 1)) # drop initialized weights
+x = self.drop2(F.relu(self.lin1(x))) # drop 1st linear + nonlinear wt
+r = F.sigmoid(self.lin2(x)) * (max_rating - min_rating) + min_rating   
+```
+
+

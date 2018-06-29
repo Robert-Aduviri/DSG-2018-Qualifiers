@@ -17,7 +17,8 @@ def scale_features(df, scaler, num_cols):
     for i, col in enumerate(num_cols):
         df[col] = scaled[:,i]
 
-def preprocess(train, val, test, cat_cols, num_cols, seq_dict):
+def preprocess(train, val, test, cat_cols, num_cols, seq_interest,
+               seq_transactions, seq_buysells, seq_customers, seq_isins):
     print('Encoding cats...')
     to_cat_codes(train, cat_cols)
     apply_cats(val, train)
@@ -44,12 +45,25 @@ def preprocess(train, val, test, cat_cols, num_cols, seq_dict):
     scale_features(val, scaler, num_cols)
     scale_features(test, scaler, num_cols)
     
+    
     print('Extracting seqs...')
-    train_seqs = np.array([seq_dict[(c,i,b)] for c,i,b in \
+    train_seqs = np.array([[seq_interest[(c,i,b)],
+                            seq_transactions[(c,i,b)],
+                            seq_buysells[(c,i)],
+                            seq_customers[c],
+                            seq_isins[i]] for c,i,b in \
                 zip(train.CustomerIdx, train.IsinIdx, train.BuySell)])
-    val_seqs = np.array([seq_dict[(c,i,b)] for c,i,b in \
+    val_seqs = np.array([[seq_interest[(c,i,b)],
+                            seq_transactions[(c,i,b)],
+                            seq_buysells[(c,i)],
+                            seq_customers[c],
+                            seq_isins[i]] for c,i,b in \
                     zip(val.CustomerIdx, val.IsinIdx, val.BuySell)])
-    test_seqs = np.array([seq_dict[(c,i,b)] for c,i,b in \
+    test_seqs = np.array([[seq_interest[(c,i,b)],
+                            seq_transactions[(c,i,b)],
+                            seq_buysells[(c,i)],
+                            seq_customers[c],
+                            seq_isins[i]] for c,i,b in \
                     zip(test.CustomerIdx, test.IsinIdx, test.BuySell)])
     
     train['BuySell'] = train.BuySell.apply(lambda x: int(x == 'Buy'))
@@ -86,18 +100,20 @@ class MultimodalNet(nn.Module):
         
         self.lstm = nn.LSTM(rnn_input_sz, rnn_hidden_sz, rnn_n_layers, 
                             dropout=rnn_drop)
-        self.out = nn.Linear(rnn_hidden_sz, out_sz)
+        self.out = nn.Linear(rnn_hidden_sz * 2, out_sz) # [struct_out, rnn_out]
         
         self.rnn_n_layers = rnn_n_layers
         self.rnn_hidden_sz = rnn_hidden_sz
         
     def forward(self, cats, conts, seqs, hidden):
+        # seqs: [bs, inp, seq]
         x = self.structured_net(cats, conts) # [bs, hs]
         # cell = x.unsqueeze(0).repeat(self.rnn_n_layers, 1, 1) # [nlay, bs, hs]
         cell = x.unsqueeze(0).expand(self.rnn_n_layers, -1, -1).contiguous()
-        seqs = seqs.transpose(1,0).unsqueeze(2) # [sqlen, bs, 1] 1<=rnn_inp_sz
+        seqs = seqs.transpose(1,0).transpose(2,0) # .unsqueeze(2) 
+        # seqs: [seq, bs, inp]
         outputs, hidden = self.lstm(seqs, (hidden, cell))
-        out = self.out(outputs[-1]) # != if bidirectional
+        out = self.out(torch.cat([x, outputs[-1]], 1)) # [struct_out, rnn_out]
         return out
         
     def init_hidden(self, batch_sz):
@@ -113,7 +129,7 @@ def train_step(model, cats, conts, seqs, hidden,
     optimizer.step()
     return loss.item()
 
-def get_predictions(model, data_loader, print_every=800, USE_CUDA=False):
+def get_predictions(model, data_loader, print_every=1200, USE_CUDA=False):
     targets = []
     preds = []
     model.eval()
@@ -133,6 +149,12 @@ def get_predictions(model, data_loader, print_every=800, USE_CUDA=False):
                         100. * batch_idx / len(data_loader)))
     return [x.item() for x in targets], [F.sigmoid(x).item() for x in preds]
 
+def get_metrics(model, data_loader, USE_CUDA=False):
+    targets, preds = get_predictions(model, data_loader, USE_CUDA=USE_CUDA)
+    loss = nn.BCELoss()(torch.Tensor(preds), torch.Tensor(targets)).item()
+    auc = roc_auc_score(targets, preds)
+    return loss, auc
+    
 def train_model(model, train_loader, val_loader, optimizer, criterion,
                 n_epochs, print_every=200, val_every=5, USE_CUDA=False):
     if USE_CUDA:
@@ -160,13 +182,19 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
                 train_loss = 0
             
             if batch_idx > 0 and batch_idx % val_every == 0:
-                targets, preds = get_predictions(model, val_loader, USE_CUDA=USE_CUDA)
-                val_loss = nn.BCELoss()(torch.Tensor(preds),
-                                        torch.Tensor(targets)).item()
+                val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
                 val_losses.append(val_loss)
-                val_auc = roc_auc_score(targets, preds)
                 val_auc_scores.append(val_auc)
                 print(f'ROC AUC Score: {val_auc:.6f}') 
                 print(f'Validation Loss: {val_loss:.6f}')
+                
+        print('Epoch Results:')
+        train_loss, train_auc = get_metrics(model, train_loader, USE_CUDA)
+        print(f'Train ROC AUC Score: {train_auc:.6f}')
+        print(f'Train Loss: {train_loss:.6f}')
+        val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
+        print(f'Validation ROC AUC Score: {val_auc:.6f}')
+        print(f'Validation Loss: {val_loss:.6f}')       
+        
         print()
     return model, train_losses, val_losses, val_auc_scores   
