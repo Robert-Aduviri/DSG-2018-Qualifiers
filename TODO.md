@@ -51,6 +51,8 @@
 - [ ] Recommender system based on embeddings
 
 ```
+torch.utils.data.ConcatDataset(datasets)
+
 users,movies = cats[:,0],cats[:,1]
 u2,m2 = self.u(users) , self.m(movies)
 x = self.drop1(torch.cat([u2,m2], 1)) # drop initialized weights
