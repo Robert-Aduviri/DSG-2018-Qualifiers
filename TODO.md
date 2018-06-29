@@ -45,10 +45,12 @@
 - [ ] Train with targets of previous timesteps
 - [ ] Fast.ai functions
 - [ ] Control overfitting
-- [ ] Add Customer and Bond embedding
 - [ ] More dense layers / dropout / ReLU activations at the end
 - [ ] Get macro / market data
 - [ ] Recommender system based on embeddings
+
+- [ ] Add Customer and Bond embedding
+- [ ] Use sequence as concatenated feature
 
 ```
 torch.utils.data.ConcatDataset(datasets)
