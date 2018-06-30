@@ -181,20 +181,21 @@ def train_model(model, train_loader, val_loader, optimizer, criterion,
                 train_losses.append(train_loss)
                 train_loss = 0
             
-            if batch_idx > 0 and batch_idx % val_every == 0:
+            if val_loader is not None and batch_idx > 0 and batch_idx % val_every == 0:
                 val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
                 val_losses.append(val_loss)
                 val_auc_scores.append(val_auc)
                 print(f'ROC AUC Score: {val_auc:.6f}') 
                 print(f'Validation Loss: {val_loss:.6f}')
-                
-        print('Epoch Results:')
-        train_loss, train_auc = get_metrics(model, train_loader, USE_CUDA)
-        print(f'Train ROC AUC Score: {train_auc:.6f}')
-        print(f'Train Loss: {train_loss:.6f}')
-        val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
-        print(f'Validation ROC AUC Score: {val_auc:.6f}')
-        print(f'Validation Loss: {val_loss:.6f}')       
+        
+        if val_loader is not None:
+            print('Epoch Results:')
+            train_loss, train_auc = get_metrics(model, train_loader, USE_CUDA)
+            print(f'Train ROC AUC Score: {train_auc:.6f}')
+            print(f'Train Loss: {train_loss:.6f}')
+            val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
+            print(f'Validation ROC AUC Score: {val_auc:.6f}')
+            print(f'Validation Loss: {val_loss:.6f}')       
         
         print()
     return model, train_losses, val_losses, val_auc_scores   
