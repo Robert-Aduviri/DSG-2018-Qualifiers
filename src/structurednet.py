@@ -133,6 +133,7 @@ class MultimodalDataset(torch.utils.data.Dataset):
         
 class StructuredNet(nn.Module):
     def __init__(self, emb_szs, n_cont, emb_drop, szs, drops,
+                 rnn_hidden_sz, rnn_input_sz, rnn_n_layers, rnn_drop,
                  use_bn=True, out_sz=1):
         super().__init__()
         
@@ -144,7 +145,7 @@ class StructuredNet(nn.Module):
             
         n_emb = sum(e.embedding_dim for e in self.embs)
         self.n_emb, self.n_cont = n_emb, n_cont
-        szs = [n_emb + n_cont] + szs
+        szs = [n_emb + n_cont + rnn_hidden_sz] + szs
         
         self.lins = nn.ModuleList([
             nn.Linear(szs[i], szs[i+1]) for i in range(len(szs)-1)
@@ -166,8 +167,16 @@ class StructuredNet(nn.Module):
         self.bn = nn.BatchNorm1d(n_cont)
         
         self.use_bn = use_bn
+        
+        ## LSTM
+        
+        self.lstm = nn.LSTM(rnn_input_sz, rnn_hidden_sz, rnn_n_layers, 
+                            dropout=rnn_drop)
+        
+        self.rnn_n_layers = rnn_n_layers
+        self.rnn_hidden_sz = rnn_hidden_sz
     
-    def forward(self, x_cat, x_cont):
+    def forward(self, x_cat, x_cont, seqs, hidden):
         if self.n_emb != 0:
             x = [emb(x_cat[:,i]) for i,emb in enumerate(self.embs)]
             x = torch.cat(x, 1)
@@ -175,6 +184,11 @@ class StructuredNet(nn.Module):
         if self.n_cont != 0:
             x2 = self.bn(x_cont)
             x = torch.cat([x, x2], 1) if self.n_emb != 0 else x2
+            
+        seqs = seqs.transpose(1,0).transpose(2,0) 
+        output, hidden = self.lstm(seqs, hidden)
+        x = torch.cat([x, output[-1]], 1) # last LSTM state
+            
         for lin, drop, bn in zip(self.lins, self.drops, self.bns):
             x = F.relu(lin(x))
             if self.use_bn:
@@ -188,37 +202,52 @@ class StructuredNet(nn.Module):
         sc = 2 / (x.size(1) + 1)
         x.uniform_(-sc, sc)
         
-def train_step(cats, conts, target, model, optimizer, criterion, train=True):
+    def init_hidden(self, batch_sz, USE_CUDA):
+        hidden = torch.zeros(self.rnn_n_layers, batch_sz, self.rnn_hidden_sz)
+        cell = torch.zeros(self.rnn_n_layers, batch_sz, self.rnn_hidden_sz)
+        if USE_CUDA:
+            hidden = hidden.cuda()
+            cell = cell.cuda()
+        return (hidden, cell)
+        
+def train_step(model, cats, conts, seqs, hidden, targets, 
+               optimizer, criterion):
     model.train()
-    if train:
-        optimizer.zero_grad()
-    pred = model(cats, conts)
-    loss = criterion(pred.view(-1), target) # [preds, targets]
-    if train:
-        loss.backward()
-        optimizer.step()
+    optimizer.zero_grad()
+    preds = model(cats, conts, seqs, hidden)
+    loss = criterion(preds.view(-1), targets) 
+    loss.backward()
+    optimizer.step()
     return loss.item()
 
-def get_predictions(model, data_loader, print_every=800, USE_CUDA=False):
-    all_targets = []
-    all_preds = []
+def get_predictions(model, data_loader, print_every=1200, USE_CUDA=False):
+    targets = []
+    preds = []
     model.eval()
-    for batch_idx, (cats, conts, target) in enumerate(data_loader):
+    for batch_idx, (cats, conts, seqs, target) in enumerate(data_loader):
         with torch.no_grad():            
-            cats, conts, target = Variable(cats), Variable(conts), Variable(target)
+            hidden = model.init_hidden(len(cats), USE_CUDA)
             if USE_CUDA:
-                cats, conts, target = cats.cuda(), conts.cuda(), target.cuda()
-            preds = model(cats, conts)
-            all_targets.extend(target.cpu())
-            all_preds.extend(preds.cpu())
+                cats, conts, seqs, target = cats.cuda(), conts.cuda(), \
+                                    seqs.cuda(), target.cuda()
+            pred = model(cats, conts, seqs, hidden)
+            targets.extend(target.cpu())
+            preds.extend(pred.cpu())
+            assert len(targets) == len(preds)
             if batch_idx % print_every == 0:
                 print('[{}/{} ({:.0f}%)]'.format(
                         batch_idx * len(cats), len(data_loader.dataset),
                         100. * batch_idx / len(data_loader)))
-    return [x.item() for x in all_targets], [F.sigmoid(x).item() for x in all_preds]
+    return [x.item() for x in targets], [F.sigmoid(x).item() for x in preds]
 
-def train_model(model, optimizer, criterion, train_loader, val_loader, 
-                n_epochs, print_every=800, val_every=10, USE_CUDA=False):
+def get_metrics(model, data_loader, USE_CUDA=False):
+    targets, preds = get_predictions(model, data_loader, USE_CUDA=USE_CUDA)
+    loss = nn.BCELoss()(torch.Tensor(preds), torch.Tensor(targets)).item()
+    auc = roc_auc_score(targets, preds)
+    return loss, auc
+
+def train_model(model, train_loader, val_loader, optimizer, criterion,
+                n_epochs, print_every=200, val_every=5, USE_CUDA=False):
     if USE_CUDA:
         model = model.cuda()
     train_losses = []
@@ -226,32 +255,38 @@ def train_model(model, optimizer, criterion, train_loader, val_loader,
     val_auc_scores = []
     val_every *= print_every
     for epoch in range(n_epochs):
-        train_loss, val_loss = 0, 0
-        for batch_idx, (cats, conts, target) in enumerate(train_loader):
-            cats, conts, target = Variable(cats), Variable(conts), Variable(target)
+        train_loss = 0
+        for batch_idx, (cats, conts, seqs, target) in enumerate(train_loader):
+            hidden = model.init_hidden(len(cats), USE_CUDA)
             if USE_CUDA:
-                cats, conts, target = cats.cuda(), conts.cuda(), target.cuda()
-            train_loss += train_step(cats, conts, target, model, optimizer, 
-                                     criterion, train=True)
+                cats, conts, seqs, target = cats.cuda(), conts.cuda(), \
+                                    seqs.cuda(), target.cuda()
+            train_loss += train_step(model, cats, conts, seqs, hidden, 
+                                     target, optimizer, criterion)
+            
             if batch_idx > 0 and batch_idx % print_every == 0:
                 train_loss /= print_every
                 print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                        epoch+1, batch_idx * len(cats), len(train_loader.dataset),
+                        epoch + 1, batch_idx * len(seqs), len(train_loader.dataset),
                         100. * batch_idx / len(train_loader), train_loss))
                 train_losses.append(train_loss)
                 train_loss = 0
-                
+            
             if val_loader is not None and batch_idx > 0 and batch_idx % val_every == 0:
-                targets, preds = get_predictions(model, val_loader, USE_CUDA=USE_CUDA)
-                # [preds, targets]
-                val_loss = nn.BCELoss()(torch.Tensor(preds), torch.Tensor(targets)).item() 
+                val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
                 val_losses.append(val_loss)
-                val_auc = roc_auc_score(targets, preds)
                 val_auc_scores.append(val_auc)
-                # [targets, preds]
                 print(f'ROC AUC Score: {val_auc:.6f}') 
                 print(f'Validation Loss: {val_loss:.6f}')
-                
+        
+        if val_loader is not None:
+            print('Epoch Results:')
+            train_loss, train_auc = get_metrics(model, train_loader, USE_CUDA)
+            print(f'Train ROC AUC Score: {train_auc:.6f}')
+            print(f'Train Loss: {train_loss:.6f}')
+            val_loss, val_auc = get_metrics(model, val_loader, USE_CUDA)
+            print(f'Validation ROC AUC Score: {val_auc:.6f}')
+            print(f'Validation Loss: {val_loss:.6f}')       
+        
         print()
-                
-    return model, train_losses, val_losses, val_auc_scores
+    return model, train_losses, val_losses, val_auc_scores   
